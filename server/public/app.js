@@ -10,7 +10,7 @@ const store = {
 };
 
 const state = {
-  token: store.get('dxl.token'),
+  token: window.DXL_DEMO?.token ?? store.get('dxl.token'),
   admin: null,
   needsSetup: false,
   snap: null,
@@ -48,6 +48,35 @@ function duration(ms, { seconds = true } = {}) {
 
 const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const fmtDateTime = (t) => new Date(t).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+// In-page confirmation (browser confirm/prompt are unreliable in kiosk and embedded views).
+// Resolves with the chosen button's value, or null when cancelled.
+function ask({ title, message = '', buttons = [{ label: 'Confirm', value: true, primary: true }] }) {
+  let el = document.getElementById('ask');
+  if (!el) {
+    el = document.createElement('dialog');
+    el.id = 'ask';
+    document.body.append(el);
+  }
+  el.innerHTML = `
+    <div class="dlg-head"><h2>${esc(title)}</h2></div>
+    ${message ? `<div class="dlg-body"><div>${message}</div></div>` : ''}
+    <div class="dlg-foot">
+      <button type="button" data-ask="">Cancel</button>
+      ${buttons.map((b, i) => `<button type="button" class="${b.primary ? 'primary' : ''}" data-ask="${i}">${esc(b.label)}</button>`).join('')}
+    </div>`;
+  return new Promise((resolve) => {
+    let result = null;
+    el.onclick = (e) => {
+      const btn = e.target.closest('[data-ask]');
+      if (!btn) return;
+      result = btn.dataset.ask === '' ? null : buttons[Number(btn.dataset.ask)].value;
+      el.close();
+    };
+    el.onclose = () => resolve(result);
+    el.showModal();
+  });
+}
 
 function toast(msg) {
   $toast.textContent = msg;
@@ -418,16 +447,29 @@ async function endSession(st) {
   const s = st.session;
   let method = 'cash';
   if (s.mode === 'prepaid' || s.mode === 'maintenance') {
-    if (!confirm(`End the session on ${st.name}?${s.mode === 'prepaid' ? ' Unused prepaid time is not refunded.' : ''}`)) return;
+    const ok = await ask({
+      title: `End the session on ${st.name}?`,
+      message: s.mode === 'prepaid' ? 'Unused prepaid time is not refunded.' : 'The station locks again.',
+      buttons: [{ label: 'End session', value: true, primary: true }],
+    });
+    if (!ok) return;
   } else {
     const q = await run(() => api(`/stations/${st.id}/quote`));
     if (!q) return;
     if (s.mode === 'open') {
-      const answer = prompt(`${st.name}: ${q.minutes} min played.\nCollect ${money(q.due)}.\n\nType "card" for card payment, or press OK for cash.`, 'cash');
-      if (answer == null) return;
-      method = answer.trim().toLowerCase() === 'card' ? 'card' : 'cash';
-    } else if (!confirm(`${st.name}: ${q.minutes} min played. ${money(Math.min(q.due, s.customerBalance))} will be deducted from ${s.customerName}'s balance. End now?`)) {
-      return;
+      method = await ask({
+        title: `Collect ${money(q.due)}`,
+        message: `${esc(st.name)}: ${q.minutes} min played at ${money(s.rate)} per hour. How is the customer paying?`,
+        buttons: [{ label: 'Paid by card', value: 'card' }, { label: 'Paid in cash', value: 'cash', primary: true }],
+      });
+      if (!method) return;
+    } else {
+      const ok = await ask({
+        title: `End ${s.customerName}'s session?`,
+        message: `${esc(st.name)}: ${q.minutes} min played. ${money(Math.min(q.due, s.customerBalance))} is deducted from their balance.`,
+        buttons: [{ label: 'End session', value: true, primary: true }],
+      });
+      if (!ok) return;
     }
   }
   const ended = await run(() => api(`/stations/${st.id}/end`, { method: 'POST', body: { method } }));
@@ -707,6 +749,7 @@ async function loadReports() {
 }
 
 async function exportCsv() {
+  if (window.DXL_DEMO) return toast('CSV export works in the installed version');
   const txs = await run(() => api('/transactions?limit=1000'));
   if (!txs) return;
   const head = ['time', 'type', 'amount', 'method', 'station', 'member', 'staff', 'note'];
@@ -777,8 +820,10 @@ document.addEventListener('click', async (e) => {
     case 'pause': return run(() => api(`/stations/${st.id}/pause`, { method: 'POST' }), `${st.name} paused`);
     case 'resume': return run(() => api(`/stations/${st.id}/resume`, { method: 'POST' }), `${st.name} resumed`);
     case 'end': return endSession(st);
-    case 'cmd':
-      if (!confirm(`${el.dataset.cmd === 'restart' ? 'Restart' : 'Shut down'} ${st.name}?`)) return undefined;
+    case 'cmd': {
+      const label = el.dataset.cmd === 'restart' ? 'Restart' : 'Shut down';
+      if (!(await ask({ title: `${label} ${st.name}?`, buttons: [{ label, value: true, primary: true }] }))) return undefined;
+    }
       return run(() => api(`/stations/${st.id}/command`, { method: 'POST', body: { action: el.dataset.cmd } }), 'Command sent');
 
     case 'new-member': return memberDialog();
@@ -788,19 +833,23 @@ document.addEventListener('click', async (e) => {
     case 'new-zone': return zoneDialog();
     case 'edit-zone': return zoneDialog(state.snap.zones.find((z) => z.id === Number(id)));
     case 'delete-zone':
-      if (!confirm('Delete this zone?')) return undefined;
+      if (!(await ask({ title: 'Delete this zone?', buttons: [{ label: 'Delete zone', value: true, primary: true }] }))) return undefined;
       return run(() => api(`/zones/${id}`, { method: 'DELETE' }), 'Zone deleted');
     case 'new-station': return stationDialog();
     case 'edit-station': return stationDialog(stationById(id));
     case 'delete-station':
-      if (!confirm(`Delete ${stationById(id)?.name}?`)) return undefined;
+      if (!(await ask({ title: `Delete ${stationById(id)?.name}?`, buttons: [{ label: 'Delete station', value: true, primary: true }] }))) return undefined;
       return run(() => api(`/stations/${id}`, { method: 'DELETE' }), 'Station deleted');
     case 'show-token': return showToken(Number(id));
     case 'copy-cfg':
       await navigator.clipboard?.writeText(document.getElementById('cfg').value).catch(() => {});
       return toast('Copied');
     case 'regen-token':
-      if (!confirm('Generate a new token? The PC disconnects until you update its config.')) return undefined;
+      if (!(await ask({
+        title: 'Generate a new token?',
+        message: 'The PC disconnects until you update its config.',
+        buttons: [{ label: 'Generate', value: true, primary: true }],
+      }))) return undefined;
       await run(() => api(`/stations/${id}/token`, { method: 'POST' }), 'New token generated');
       return showToken(Number(id));
 

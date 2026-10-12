@@ -10,10 +10,15 @@
   "scripts": {
     "server": "node --disable-warning=ExperimentalWarning server/src/index.js",
     "agent": "node agent/src/index.js",
-    "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\""
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\"",
+    "build:demo": "node demo/build.mjs"
   },
   "dependencies": {
     "express": "^4.21.2",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2",
+    "sql.js": "^1.12.0"
   }
 }

@@ -20,3 +20,6 @@ __pycache__/
 # Runtime data
 data/
 agent/config.json
+
+# Built demo (npm run build:demo)
+demo/dist/

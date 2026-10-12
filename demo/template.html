@@ -1,0 +1,37 @@
+<title>DXL Gaming Zone Demo</title>
+<meta name="color-scheme" content="dark">
+<style>
+/*APP_CSS*/
+/*DEMO_CSS*/
+</style>
+<div id="demo-loading">Loading the DXL demo</div>
+<div id="demo-bar">
+  <span class="title">DXL Gaming Zone</span>
+  <span class="tag">Interactive demo</span>
+  <div class="seg">
+    <button type="button" data-tab="desk" class="on">Front desk</button>
+    <button type="button" data-tab="pc">Gaming PC</button>
+  </div>
+  <div class="spacer"></div>
+  <button type="button" class="small" data-demo="guide">What to try</button>
+  <button type="button" class="small primary" data-demo="skip">Skip 5 minutes</button>
+  <button type="button" class="small" data-demo="reset">Reset demo</button>
+</div>
+<div id="demo-guide" hidden>
+  <b>A few things to try</b>
+  <ol>
+    <li>On <b>Floor</b>, click <b>PC 04</b> and start a 30 minute <b>Prepaid</b> session. Then open <b>Gaming PC</b> and pick PC 04: it is unlocked with a timer.</li>
+    <li>On <b>Gaming PC</b>, pick a locked PC (PC 05 or PC 07) and sign in as member <code>ali</code> with PIN <code>1234</code>. Watch it appear on the Floor.</li>
+    <li><b>PC 02</b> is about to run out. Press <b>Skip 5 minutes</b> and watch it end and lock by itself.</li>
+    <li>End the <b>Open</b> session on <b>PC 03</b> to see the per minute bill. Top up a member on <b>Members</b>.</li>
+    <li>Open <b>Reports</b> to see today's cash, card, top ups and revenue by zone.</li>
+  </ol>
+  <p class="muted" style="margin:8px 0 0">Everything runs inside your browser with sample data. Nothing is saved, and Reset starts over.</p>
+</div>
+<div id="app"></div>
+<div id="pc-view" hidden></div>
+<dialog id="dlg"></dialog>
+<div id="toast" role="status"></div>
+<script>/*SQL_JS*/</script>
+<script>window.DXL_WASM_B64 = "/*WASM_B64*/";</script>
+<script type="module">/*BUNDLE*/</script>

@@ -16,3 +16,7 @@ __pycache__/
 # Environment
 .env
 .env.*
+
+# Runtime data
+data/
+agent/config.json

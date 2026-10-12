@@ -1,0 +1,5 @@
+{
+  "serverUrl": "ws://192.168.1.10:8080/ws",
+  "token": "PASTE_THE_STATION_PAIRING_TOKEN_HERE",
+  "localPort": 47800
+}

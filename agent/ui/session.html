@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Session · DXL</title>
+  <link rel="stylesheet" href="/ui.css">
+  <style>
+    body { padding: 20px 22px; display: grid; gap: 12px; align-content: start; background: linear-gradient(160deg, var(--deep), var(--midnight) 70%); }
+    .row { display: flex; justify-content: space-between; align-items: baseline; }
+    #time { font: 700 46px/1 var(--display); letter-spacing: -0.01em; }
+    #who { color: var(--muted); font-size: 14px; }
+    #logout { display: none; padding: 10px; font-size: 14px; }
+    body.is-member #logout { display: block; }
+    #msg { font-size: 13px; color: var(--muted); min-height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="row"><span class="kicker" id="station">Session</span><span class="wordmark">DXL</span></div>
+  <div class="kicker" id="label">Time left</div>
+  <div id="time">--:--</div>
+  <div id="who"></div>
+  <button id="logout" class="ghost">End my session</button>
+  <div id="msg"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fmt = (ms) => {
+      const t = Math.floor(ms / 1000);
+      const h = Math.floor(t / 3600);
+      const m = String(Math.floor((t % 3600) / 60)).padStart(2, '0');
+      const s = String(t % 60).padStart(2, '0');
+      return h ? `${h}:${m}:${s}` : `${m}:${s}`;
+    };
+
+    async function refresh() {
+      try {
+        const s = await (await fetch('/api/state')).json();
+        if (s.station) $('station').textContent = s.station;
+        const session = s.session;
+        document.body.classList.toggle('is-member', session?.mode === 'member');
+        if (!session || s.locked) {
+          $('label').textContent = session?.paused ? 'Paused' : 'Session ended';
+          $('time').textContent = '--:--';
+          return;
+        }
+        if (s.remainingMs == null) {
+          $('label').textContent = 'Time played';
+          $('time').textContent = fmt(Date.now() - session.startedAt);
+        } else {
+          $('label').textContent = 'Time left';
+          $('time').textContent = fmt(s.remainingMs);
+        }
+        $('who').textContent = session.member ? `Signed in as ${session.member}` : (session.mode === 'open' ? 'Pay at the front desk when you finish' : '');
+      } catch {
+        $('msg').textContent = 'Agent not reachable';
+      }
+    }
+
+    $('logout').addEventListener('click', async () => {
+      if (!confirm('End your session now? Unused balance stays on your account.')) return;
+      const res = await fetch('/api/logout', { method: 'POST', headers: { 'x-dxl': '1' } });
+      $('msg').textContent = res.ok ? 'Session ended' : (await res.json()).error;
+    });
+
+    refresh();
+    setInterval(refresh, 1000);
+  </script>
+</body>
+</html>

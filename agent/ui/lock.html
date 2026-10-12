@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DXL Gaming Zone</title>
+  <link rel="stylesheet" href="/ui.css">
+  <style>
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 700px at 85% 110%, rgba(5, 56, 135, 0.55), transparent 60%),
+        radial-gradient(900px 600px at -10% -20%, rgba(5, 56, 135, 0.35), transparent 60%),
+        var(--midnight);
+    }
+    header, footer { display: flex; justify-content: space-between; align-items: center; padding: 32px 48px; }
+    header .wordmark { font-size: 28px; }
+    header .wordmark small { font: 500 12px var(--mono); letter-spacing: 0.24em; color: var(--muted); margin-left: 10px; }
+    #clock { font: 500 28px var(--display); }
+    main { display: grid; grid-template-columns: 1.2fr 1fr; gap: 64px; align-items: center; padding: 0 48px; max-width: 1280px; width: 100%; margin: 0 auto; }
+    h1 { font: 700 clamp(56px, 9vw, 120px)/0.95 var(--display); margin: 12px 0 16px; letter-spacing: -0.02em; }
+    .zone { font: 500 22px var(--display); color: var(--muted); }
+    .card { background: rgba(5, 56, 135, 0.35); border: 1px solid var(--line); border-radius: 18px; padding: 32px; }
+    .card h2 { font: 700 24px var(--display); margin: 0 0 6px; }
+    .card p { color: var(--muted); margin: 0 0 22px; line-height: 1.5; }
+    form { display: grid; gap: 12px; }
+    #msg { min-height: 22px; font-size: 14px; color: var(--white); }
+    #paused, #offline { display: none; }
+    body.is-paused #paused, body.is-offline #offline { display: block; }
+    body.is-paused form, body.is-offline form { display: none; }
+    footer { color: var(--muted); font-size: 13px; }
+    @media (max-width: 860px) { main { grid-template-columns: 1fr; gap: 32px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wordmark">DXL<small>SOLUTIONS</small></div>
+    <div id="clock"></div>
+  </header>
+
+  <main>
+    <section>
+      <div class="kicker" id="venue">Gaming Zone</div>
+      <h1 id="station">Station</h1>
+      <div class="zone" id="zone"></div>
+    </section>
+
+    <section class="card">
+      <h2>Sign in to play</h2>
+      <p>Members sign in with their username and PIN. Walk in players, please see the front desk to start a session.</p>
+      <form id="login" autocomplete="off">
+        <input id="username" placeholder="Username" autocapitalize="none" spellcheck="false" required>
+        <input id="pin" placeholder="PIN" type="password" inputmode="numeric" maxlength="8" required>
+        <button id="go" type="submit">Start playing</button>
+        <div id="msg" role="status"></div>
+      </form>
+      <div id="paused"><h2>Session paused</h2><p>Your time is on hold. The front desk will resume it.</p></div>
+      <div id="offline"><h2>Connecting</h2><p id="offline-text">This PC is reconnecting to the front desk. Please wait a moment.</p></div>
+    </section>
+  </main>
+
+  <footer>
+    <span><span class="dot" id="dot"></span><span id="conn">Connecting</span></span>
+    <span>Powered by DXL Solutions</span>
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let busy = false;
+
+    function clock() {
+      $('clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    async function refresh() {
+      try {
+        const s = await (await fetch('/api/state')).json();
+        if (s.venueName) $('venue').textContent = s.venueName;
+        if (s.station) { $('station').textContent = s.station; document.title = `${s.station} · DXL`; }
+        if (s.zone) $('zone').textContent = `${s.zone} zone`;
+        document.body.classList.toggle('is-offline', !s.connected);
+        document.body.classList.toggle('is-paused', s.connected && !!s.session?.paused);
+        $('dot').className = s.connected ? 'dot' : 'dot off';
+        $('conn').textContent = s.connected ? 'Connected to front desk' : 'Offline';
+        if (s.error) $('offline-text').textContent = s.error;
+      } catch {
+        document.body.classList.add('is-offline');
+      }
+    }
+
+    $('login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (busy) return;
+      busy = true;
+      $('go').disabled = true;
+      $('msg').textContent = 'Signing in';
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-dxl': '1' },
+          body: JSON.stringify({ username: $('username').value, pin: $('pin').value }),
+        });
+        const body = await res.json();
+        $('msg').textContent = res.ok ? 'Welcome. Unlocking now.' : body.error;
+        if (res.ok) $('username').value = '';
+      } catch {
+        $('msg').textContent = 'Could not reach the agent on this PC.';
+      } finally {
+        $('pin').value = '';
+        busy = false;
+        $('go').disabled = false;
+      }
+    });
+
+    // Block the usual escape keys inside the kiosk page.
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'F5' || e.key === 'F11' || e.key === 'F12' || (e.ctrlKey && ['r', 'w', 'p', 'l', 'n', 't'].includes(e.key.toLowerCase()))) {
+        e.preventDefault();
+      }
+    });
+
+    clock();
+    refresh();
+    setInterval(clock, 1000);
+    setInterval(refresh, 1000);
+    $('username').focus();
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "dxl-gaming-zone",
+  "version": "0.1.0",
+  "description": "DXL Solutions Gaming Zone Manager: time management, billing and remote control for gaming centres",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "server": "node --disable-warning=ExperimentalWarning server/src/index.js",
+    "agent": "node agent/src/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}
